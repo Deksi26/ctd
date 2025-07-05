@@ -17,8 +17,8 @@ st_autorefresh = st.experimental_rerun if st.button("🔄 Ručno osveži") else 
 # ==== Telegram funkcija ====
 def send_telegram_alert(message):
     try:
-        token = st.secrets["telegram_token"]
-        chat_id = st.secrets["telegram_chat_id"]
+        token = st.secrets["TELEGRAM_BOT_TOKEN"]
+        chat_id = st.secrets["TELEGRAM_CHAT_ID"]
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
         response = requests.post(url, data=payload)
@@ -71,14 +71,17 @@ def get_top_coins():
     return pd.DataFrame(response.json())
 
 def get_coin_details(coin_id):
-    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        return {
-            'country': data.get('country_origin') or 'N/A',
-            'launch_date': data.get('genesis_date') or 'N/A'
-        }
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'country': data.get('country_origin') or 'N/A',
+                'launch_date': data.get('genesis_date') or 'N/A'
+            }
+    except:
+        pass
     return {'country': 'N/A', 'launch_date': 'N/A'}
 
 with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
@@ -97,7 +100,7 @@ df = df[df['total_volume'] >= min_volume * 1e6]
 df = df.dropna(subset=[change_column])
 df = df.sort_values(change_column, ascending=False)
 
-client = Client(st.secrets["binance_api"], st.secrets["binance_secret"])
+client = Client(st.secrets["binance_api_key"], st.secrets["binance_api_secret"])
 
 def get_binance_indicators(symbol):
     try:
