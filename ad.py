@@ -102,7 +102,7 @@ def get_fundamentals(coin_id):
             'Country': data.get('country_origin'),
             'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
             'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks'),
-            'CoinCup': f"[CoinCup](https://coincup.io/token/{data.get('symbol', '').lower()})"
+            'CoinMarketCap': f"[🔗 CoinMarketCap](https://coinmarketcap.com/currencies/{data.get('id', '')}/)"
         }
     except:
         return {}
@@ -143,13 +143,13 @@ for col in ['Price', f'% Change ({time_period})']:
 for col in ['Market Cap', 'Volume']:
     df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
 
-# Dugme ka CoinCup
-df_display['CoinCup'] = df_display['Symbol'].apply(lambda x: f'<a href="https://coincup.io/token/{x.lower()}" target="_blank"><button>CoinCup</button></a>')
+# Dugme ka CoinMarketCap
+df_display['CoinMarketCap'] = df['id'].apply(lambda x: f'<a href="https://coinmarketcap.com/currencies/{x}/" target="_blank"><button>CMC</button></a>')
 
 st.write("""
 <style>
 button {
-  background-color: #f0ad4e;
+  background-color: #4CAF50;
   border: none;
   color: white;
   padding: 4px 10px;
