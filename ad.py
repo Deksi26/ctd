@@ -7,6 +7,7 @@ from datetime import datetime
 import ta
 import time
 
+# ==== Lozinka ====
 PASSWORD = st.secrets["pass"]
 
 if "password_correct" not in st.session_state:
@@ -19,8 +20,7 @@ if not st.session_state["password_correct"]:
             st.session_state["password_correct"] = True
         else:
             st.error("❌ Pogrešna lozinka, pokušaj ponovo.")
-        st.stop()
-    
+    st.stop()
 
 st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
 st.title("💥 Kripto Snajper – Lovac na brze mete")
