@@ -17,8 +17,7 @@ if not st.session_state["password_correct"]:
     if pwd:
         if pwd == PASSWORD:
             st.session_state["password_correct"] = True
-            # Rerun app nakon uspešnog unosa lozinke
-            st.experimental_rerun()
+            
         else:
             st.error("❌ Pogrešna lozinka, pokušaj ponovo.")
     # Ovde zaustavljamo dalje izvršavanje dok korisnik ne unese ispravnu lozinku
