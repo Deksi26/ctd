@@ -58,7 +58,7 @@ with st.expander("📘 Kako tumačiti podatke i grafikone"):
 - Male market cap kriptovalute + visok rast = rizične ali mogu biti eksplozivne.
 - Ako je cena tokena < 0.1 USDT i skokne 100% → moguće da ide dalje, ali rizik je velik.
 
-👉 Preporuka: Prati trendove, ne kupuj odmah — ovo je alat za otkrivanje, ne savet za ulaganje.
+🔪 *Eksplozivne mete (low cap + < 0.1$ + veliki skok)* su najrizičnije, ali i najprofitabilnije ako se pogode pravovremeno.
 """)
 
 # ==== Parametri ====
@@ -87,7 +87,7 @@ def get_top_coins():
 def get_new_tokens():
     url = "https://api.coingecko.com/api/v3/coins/list?include_platform=false"
     coins_list = requests.get(url).json()
-    new_tokens = coins_list[-50:]  # poslednjih 50 dodatih tokena
+    new_tokens = coins_list[-50:]
     return new_tokens
 
 @st.cache_data(ttl=3600)
@@ -110,20 +110,17 @@ def get_fundamentals(coin_id):
 with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
     df = get_top_coins()
 
-# ==== Priprema kolone po periodu ====
 change_column = {
     '1h': 'price_change_percentage_1h_in_currency',
     '24h': 'price_change_percentage_24h_in_currency',
     '7d': 'price_change_percentage_7d_in_currency',
 }[time_period]
 
-# ==== Filtriranje ====
 df = df[df['market_cap'] >= min_market_cap * 1e6]
 df = df[df['total_volume'] >= min_volume * 1e6]
 df = df.dropna(subset=[change_column])
 df = df.sort_values(change_column, ascending=False)
 
-# ==== Vizualni prikaz ====
 st.subheader(f"📈 Top 20 skokova ({time_period})")
 fig = px.bar(df.head(20), x='name', y=change_column, text=change_column,
              title=f"Top 20 kripto skokova u {time_period}", color=change_column,
@@ -131,19 +128,16 @@ fig = px.bar(df.head(20), x='name', y=change_column, text=change_column,
 fig.update_layout(xaxis_tickangle=-45, height=500)
 st.plotly_chart(fig, use_container_width=True)
 
-# ==== Tabela + upozorenja ====
 st.subheader("🔎 Detaljna tabela (Top 50)")
 df_display = df[['name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']].copy()
 df_display.columns = ['Name', 'Symbol', 'Price', f'% Change ({time_period})', 'Market Cap', 'Volume']
 
-# Formatiranje brojeva
 pd.options.display.float_format = '{:,.2f}'.format
 for col in ['Price', f'% Change ({time_period})']:
     df_display[col] = df_display[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
 for col in ['Market Cap', 'Volume']:
     df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
 
-# Dugme ka CoinMarketCap
 df_display['CoinMarketCap'] = df['id'].apply(lambda x: f'<a href="https://coinmarketcap.com/currencies/{x}/" target="_blank"><button>CMC</button></a>')
 
 st.write("""
@@ -166,7 +160,6 @@ button {
 
 st.markdown(df_display.head(50).to_html(escape=False, index=False), unsafe_allow_html=True)
 
-# ==== Upozorenja ====
 alerts = df[df[change_column] >= skok_threshold]
 if not alerts.empty:
     st.warning(f"🚨 Pronađeno {len(alerts)} kriptovaluta sa skokom većim od {skok_threshold}%!")
@@ -181,13 +174,27 @@ if not alerts.empty:
 else:
     st.info("📬 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
 
+# ==== Eksplozivne mete ====
+st.subheader("🔥 Niskobudžetne eksplozivne mete")
+explosives = df[(df['market_cap'] <= 5_000_000) & (df['current_price'] < 0.1) & (df[change_column] > skok_threshold)]
+if not explosives.empty:
+    st.success(f"📊 Pronađeno {len(explosives)} eksplozivnih mete!")
+    df_explosive = explosives[['name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']].copy()
+    df_explosive.columns = ['Name', 'Symbol', 'Price', f'% Change ({time_period})', 'Market Cap', 'Volume']
+    for col in ['Price', f'% Change ({time_period})']:
+        df_explosive[col] = df_explosive[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+    for col in ['Market Cap', 'Volume']:
+        df_explosive[col] = df_explosive[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+    st.dataframe(df_explosive)
+else:
+    st.info("🚬 Nema eksplozivnih mete trenutno.")
+
 # ==== Novi tokeni ====
 st.subheader("🆕 Novi tokeni + Fundamentalne informacije")
 new_tokens = get_new_tokens()
 fundamental_data = [get_fundamentals(token['id']) for token in new_tokens[:20]]
 fundamental_df = pd.DataFrame(fundamental_data)
 
-# Formatiranje kolona
 if 'Twitter Followers' in fundamental_df:
     fundamental_df['Twitter Followers'] = fundamental_df['Twitter Followers'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
 if 'GitHub Commits (4w)' in fundamental_df:
