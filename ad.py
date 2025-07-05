@@ -12,7 +12,8 @@ st.set_page_config(layout="wide")
 st.title("🚀 Kripto Skok Detektor + Binance RSI/MACD")
 
 # ==== Auto Refresh ====
-st_autorefresh = st.experimental_rerun if st.button("🔄 Ručno osveži") else None
+if st.button("🔄 Ručno osveži"):
+    st.rerun()
 
 # ==== Telegram funkcija ====
 def send_telegram_alert(message):
@@ -53,8 +54,9 @@ skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min
 refresh_interval = st.sidebar.selectbox("Auto Refresh (minuti)", [0, 1, 5, 10, 30], index=2)
 
 if refresh_interval:
-    st.experimental_set_query_params(_=str(datetime.now().timestamp()))
-    st_autorefresh = st.experimental_rerun if time.time() % (refresh_interval * 60) < 2 else None
+    st.query_params["_"] = str(datetime.now().timestamp())
+    if time.time() % (refresh_interval * 60) < 2:
+        st.rerun()
 
 # ==== Dohvatanje podataka ====
 @st.cache_data(ttl=600)
