@@ -45,7 +45,7 @@ def send_telegram_alert(message):
 # ==== Tutorijal ====
 with st.expander("📘 Kako tumačiti podatke i grafikone"):
     st.markdown("""
-**🎯 Cilj aplikacije**: Pratimo kriptovalute koje imaju nagli rast u zadnjih 1h, 24h ili 7 dana.
+**🌟 Cilj aplikacije**: Pratimo kriptovalute koje imaju nagli rast u zadnjih 1h, 24h ili 7 dana.
 
 **📊 Kolone:**
 - **Price**: Trenutna cena tokena.
@@ -102,7 +102,7 @@ def get_fundamentals(coin_id):
             'Country': data.get('country_origin'),
             'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
             'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks'),
-            'CoinCup': f"https://coincup.io/token/{data.get('symbol', '').lower()}"
+            'CoinCup': f"[CoinCup](https://coincup.io/token/{data.get('symbol', '').lower()})"
         }
     except:
         return {}
@@ -143,10 +143,28 @@ for col in ['Price', f'% Change ({time_period})']:
 for col in ['Market Cap', 'Volume']:
     df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
 
-# Dodaj link do CoinCup
-df_display['CoinCup'] = df_display['Symbol'].apply(lambda x: f"[Link](https://coincup.io/token/{x.lower()})")
+# Dugme ka CoinCup
+df_display['CoinCup'] = df_display['Symbol'].apply(lambda x: f'<a href="https://coincup.io/token/{x.lower()}" target="_blank"><button>CoinCup</button></a>')
 
-st.dataframe(df_display.head(50), use_container_width=True)
+st.write("""
+<style>
+button {
+  background-color: #f0ad4e;
+  border: none;
+  color: white;
+  padding: 4px 10px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 12px;
+  margin: 2px 1px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown(df_display.head(50).to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ==== Upozorenja ====
 alerts = df[df[change_column] >= skok_threshold]
