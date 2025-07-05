@@ -7,20 +7,7 @@ from datetime import datetime
 import ta
 import time
 
-# ==== Lozinka ====
-PASSWORD = st.secrets["pass"]
 
-if "password_correct" not in st.session_state:
-    st.session_state["password_correct"] = False
-
-if not st.session_state["password_correct"]:
-    pwd = st.text_input("\U0001f512 Unesi lozinku za pristup aplikaciji:", type="password")
-    if pwd:
-        if pwd == PASSWORD:
-            st.session_state["password_correct"] = True
-        else:
-            st.error("\u274c Pogrešna lozinka, pokušaj ponovo.")
-    st.stop()
 st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
 st.title("💥 Kripto Snajper – Lovac na brze mete")
 st.markdown("""
@@ -78,10 +65,10 @@ with st.expander("📘 Kako tumačiti podatke i grafikone"):
 # ==== Parametri ====
 st.sidebar.header("⚙️ Filteri")
 vs_currency = st.sidebar.selectbox("Valuta prikaza", options=['usd', 'eur'], index=0)
-time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=1)
+time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=0)
 min_market_cap = st.sidebar.number_input("Minimalni Market Cap (miliona $)", value=10)
 min_volume = st.sidebar.number_input("Minimalni volumen (miliona $)", value=1)
-skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=50)
+skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=34)
 
 # ==== Dohvatanje podataka ====
 @st.cache_data(ttl=3600)
