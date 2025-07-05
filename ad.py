@@ -8,18 +8,49 @@ import ta
 import time
 from binance.client import Client
 
+st.set_page_config(layout="wide")
+st.title("🚀 Kripto Skok Detektor + Binance RSI/MACD")
+
+# ==== Test konekcije sa Binance i Telegram ====
+st.subheader("🔧 Test konekcije sa Binance i Telegram API-jem")
+
+def test_connections():
+    status_binance = "❌ Neuspešno"
+    status_telegram = "❌ Neuspešno"
+
+    # Test Binance
+    try:
+        client = Client(st.secrets["binance_api_key"], st.secrets["binance_api_secret"])
+        client.ping()
+        status_binance = "✅ Uspostavljeno"
+    except Exception as e:
+        st.error(f"Binance greška: {e}")
+
+    # Test Telegram
+    try:
+        token = st.secrets["TELEGRAM_BOT_TOKEN"]
+        chat_id = st.secrets["TELEGRAM_CHAT_ID"]
+        msg = "🔔 Test poruka: Telegram konekcija uspešna."
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}
+        r = requests.post(url, data=payload)
+        if r.status_code == 200:
+            status_telegram = "✅ Uspostavljeno"
+        else:
+            st.error(f"Telegram status: {r.status_code}, Odgovor: {r.text}")
+    except Exception as e:
+        st.error(f"Telegram greška: {e}")
+
+    st.write(f"**Binance API konekcija:** {status_binance}")
+    st.write(f"**Telegram API konekcija:** {status_telegram}")
+
+if st.button("🔍 Testiraj konekcije"):
+    test_connections()
 
 # ==== Auto Refresh ====
 if st.button("🔄 Ručno osveži"):
     st.rerun()
-    
-try:
-    client.ping()
-except Exception as e:
-    st.error("❌ Binance API nije validan ili nije aktivan. Proveri ključeve u secrets.")
-    st.stop()
-st.set_page_config(layout="wide")
-st.title("🚀 Kripto Skok Detektor + Binance RSI/MACD")
+
 # ==== Telegram funkcija ====
 def send_telegram_alert(message):
     try:
