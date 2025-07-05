@@ -7,11 +7,26 @@ from datetime import datetime
 import ta
 import time
 
-st.set_page_config(layout="wide")
-st.title("🚀 Kripto Skok Detektor (CoinGecko verzija)")
+st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
+st.title("💥 Kripto Snajper – Lovac na brze mete")
+st.markdown("""
+<style>
+.big-title {
+    font-size: 36px;
+    font-weight: bold;
+    color: #ff4b4b;
+}
+.metric-card {
+    border-radius: 15px;
+    background-color: #f0f2f6;
+    padding: 15px;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ==== Auto Refresh i osveženje ====
-if st.button("🔄 Ručno osveži"):
+if st.button("🔄 Ručno osveži podatke"):
     st.rerun()
 
 # ==== Telegram funkcija ====
@@ -85,8 +100,8 @@ def get_fundamentals(coin_id):
             'Symbol': data.get('symbol').upper(),
             'Genesis Date': data.get('genesis_date'),
             'Country': data.get('country_origin'),
-            'Twitter': data.get('community_data', {}).get('twitter_followers'),
-            'GitHub Commits': data.get('developer_data', {}).get('commit_count_4_weeks')
+            'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
+            'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks')
         }
     except:
         return {}
@@ -108,33 +123,52 @@ df = df.dropna(subset=[change_column])
 df = df.sort_values(change_column, ascending=False)
 
 # ==== Vizualni prikaz ====
-st.subheader(f"📈 Top rastuće kriptovalute ({time_period} change)")
+st.subheader(f"📈 Top 20 skokova ({time_period})")
 fig = px.bar(df.head(20), x='name', y=change_column, text=change_column,
-             title=f"Top 20 skokova u {time_period}", color=change_column,
-             color_continuous_scale='Viridis')
+             title=f"Top 20 kripto skokova u {time_period}", color=change_column,
+             color_continuous_scale='reds')
 fig.update_layout(xaxis_tickangle=-45, height=500)
 st.plotly_chart(fig, use_container_width=True)
 
 # ==== Tabela + upozorenja ====
-st.subheader("🔎 Detaljna tabela")
-df_display = df[['name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']]
+st.subheader("🔎 Detaljna tabela (Top 50)")
+df_display = df[['name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']].copy()
 df_display.columns = ['Name', 'Symbol', 'Price', f'% Change ({time_period})', 'Market Cap', 'Volume']
+
+# Formatiranje brojeva
+pd.options.display.float_format = '{:,.2f}'.format
+for col in ['Price', f'% Change ({time_period})']:
+    df_display[col] = df_display[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+for col in ['Market Cap', 'Volume']:
+    df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+
 st.dataframe(df_display.head(50), use_container_width=True)
 
 # ==== Upozorenja ====
 alerts = df[df[change_column] >= skok_threshold]
 if not alerts.empty:
     st.warning(f"🚨 Pronađeno {len(alerts)} kriptovaluta sa skokom većim od {skok_threshold}%!")
-    st.table(alerts[['name', 'symbol', 'current_price', change_column]].rename(columns={
+    alert_display = alerts[['name', 'symbol', 'current_price', change_column]].rename(columns={
         'name': 'Naziv', 'symbol': 'Simbol', 'current_price': 'Cena', change_column: '% Skok'
-    }))
+    })
+    alert_display['Cena'] = alert_display['Cena'].apply(lambda x: f"{x:,.4f}")
+    alert_display['% Skok'] = alert_display['% Skok'].apply(lambda x: f"{x:.2f}%")
+    st.table(alert_display)
     for i, row in alerts.iterrows():
         send_telegram_alert(f"🚀 *{row['name']}* ({row['symbol'].upper()}) skočio {row[change_column]:.2f}%!")
 else:
     st.info("📭 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
 
 # ==== Novi tokeni ====
-st.subheader("🆕 Novi tokeni na CoinGecko")
+st.subheader("🆕 Novi tokeni + Fundamentalne informacije")
 new_tokens = get_new_tokens()
 fundamental_data = [get_fundamentals(token['id']) for token in new_tokens[:20]]
-st.dataframe(pd.DataFrame(fundamental_data))
+fundamental_df = pd.DataFrame(fundamental_data)
+
+# Formatiranje kolona
+if 'Twitter Followers' in fundamental_df:
+    fundamental_df['Twitter Followers'] = fundamental_df['Twitter Followers'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
+if 'GitHub Commits (4w)' in fundamental_df:
+    fundamental_df['GitHub Commits (4w)'] = fundamental_df['GitHub Commits (4w)'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
+
+st.dataframe(fundamental_df)
