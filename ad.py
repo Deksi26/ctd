@@ -68,6 +68,29 @@ def get_top_coins():
     response = requests.get(url, params=params)
     return pd.DataFrame(response.json())
 
+@st.cache_data(ttl=3600)
+def get_new_tokens():
+    url = "https://api.coingecko.com/api/v3/coins/list?include_platform=false"
+    coins_list = requests.get(url).json()
+    new_tokens = coins_list[-50:]  # poslednjih 50 dodatih tokena
+    return new_tokens
+
+@st.cache_data(ttl=3600)
+def get_fundamentals(coin_id):
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
+        data = requests.get(url).json()
+        return {
+            'Name': data.get('name'),
+            'Symbol': data.get('symbol').upper(),
+            'Genesis Date': data.get('genesis_date'),
+            'Country': data.get('country_origin'),
+            'Twitter': data.get('community_data', {}).get('twitter_followers'),
+            'GitHub Commits': data.get('developer_data', {}).get('commit_count_4_weeks')
+        }
+    except:
+        return {}
+
 with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
     df = get_top_coins()
 
@@ -109,3 +132,9 @@ if not alerts.empty:
         send_telegram_alert(f"🚀 *{row['name']}* ({row['symbol'].upper()}) skočio {row[change_column]:.2f}%!")
 else:
     st.info("📭 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
+
+# ==== Novi tokeni ====
+st.subheader("🆕 Novi tokeni na CoinGecko")
+new_tokens = get_new_tokens()
+fundamental_data = [get_fundamentals(token['id']) for token in new_tokens[:20]]
+st.dataframe(pd.DataFrame(fundamental_data))
