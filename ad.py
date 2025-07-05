@@ -101,7 +101,8 @@ def get_fundamentals(coin_id):
             'Genesis Date': data.get('genesis_date'),
             'Country': data.get('country_origin'),
             'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
-            'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks')
+            'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks'),
+            'CoinCup': f"https://coincup.io/token/{data.get('symbol', '').lower()}"
         }
     except:
         return {}
@@ -142,6 +143,9 @@ for col in ['Price', f'% Change ({time_period})']:
 for col in ['Market Cap', 'Volume']:
     df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
 
+# Dodaj link do CoinCup
+df_display['CoinCup'] = df_display['Symbol'].apply(lambda x: f"[Link](https://coincup.io/token/{x.lower()})")
+
 st.dataframe(df_display.head(50), use_container_width=True)
 
 # ==== Upozorenja ====
@@ -157,7 +161,7 @@ if not alerts.empty:
     for i, row in alerts.iterrows():
         send_telegram_alert(f"🚀 *{row['name']}* ({row['symbol'].upper()}) skočio {row[change_column]:.2f}%!")
 else:
-    st.info("📭 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
+    st.info("📬 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
 
 # ==== Novi tokeni ====
 st.subheader("🆕 Novi tokeni + Fundamentalne informacije")
