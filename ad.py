@@ -1,11 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import requests
 from datetime import datetime
-import ta
-import time
 
 # ==== Lozinka ====
 PASSWORD = st.secrets["pass"]
@@ -14,60 +11,20 @@ if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
 
 if not st.session_state["password_correct"]:
-    pwd = st.text_input("🔒 Unesi lozinku za pristup aplikaciji:", type="password")
+    pwd = st.text_input("\U0001f512 Unesi lozinku za pristup aplikaciji:", type="password")
     if pwd:
         if pwd == PASSWORD:
             st.session_state["password_correct"] = True
         else:
-            st.error("❌ Pogrešna lozinka, pokušaj ponovo.")
+            st.error("\u274c Pogrešna lozinka, pokušaj ponovo.")
     st.stop()
 
-st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
-st.title("💥 Kripto Snajper – Lovac na brze mete")
-st.markdown("""
-<style>
-.big-title {
-    font-size: 36px;
-    font-weight: bold;
-    color: #ff4b4b;
-}
-.metric-card {
-    border-radius: 15px;
-    background-color: #f0f2f6;
-    padding: 15px;
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-}
-.green-cell {
-    color: #008000;
-    font-weight: bold;
-}
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="\U0001f6a8")
+st.title("\U0001f4a5 Kripto Snajper – Lovac na brze mete")
 
-# ==== Auto Refresh i osveženje ====
-if st.button("🔄 Ručno osveži podatke"):
+# ==== Osveženje ====
+if st.button("\U0001f504 Ručno osveži podatke"):
     st.rerun()
-
-# ==== Telegram funkcija ====
-def send_telegram_alert(message):
-    try:
-        token = st.secrets["TELEGRAM_BOT_TOKEN"]
-        chat_id = st.secrets["TELEGRAM_CHAT_ID"]
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-        response = requests.post(url, data=payload)
-        return response.status_code == 200
-    except Exception as e:
-        st.error(f"Telegram greška: {e}")
-        return False
-
-# ==== Parametri ====
-st.sidebar.header("⚙️ Filteri")
-vs_currency = st.sidebar.selectbox("Valuta prikaza", options=['usd', 'eur'], index=0)
-time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=1)
-min_market_cap = st.sidebar.number_input("Minimalni Market Cap (miliona $)", value=10)
-min_volume = st.sidebar.number_input("Minimalni volumen (miliona $)", value=1)
-skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=50)
 
 # ==== Dohvatanje podataka ====
 @st.cache_data(ttl=3600)
@@ -84,66 +41,77 @@ def get_top_coins():
     return pd.DataFrame(response.json())
 
 @st.cache_data(ttl=3600)
-def get_new_tokens():
-    url = "https://api.coingecko.com/api/v3/coins/list?include_platform=false"
-    coins_list = requests.get(url).json()
-    new_tokens = coins_list[-50:]
-    return new_tokens
-
-@st.cache_data(ttl=3600)
 def get_fundamentals(coin_id):
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
         data = requests.get(url).json()
         return {
-            'id': data.get('id'),
             'Genesis Date': data.get('genesis_date'),
             'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
             'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks')
         }
     except:
-        return {'id': coin_id}
+        return {}
 
-with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
+# ==== Parametri ====
+st.sidebar.header("⚙️ Filteri")
+vs_currency = st.sidebar.selectbox("Valuta prikaza", options=['usd', 'eur'], index=0)
+time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=1)
+min_market_cap = st.sidebar.number_input("Minimalni Market Cap (miliona $)", value=10)
+min_volume = st.sidebar.number_input("Minimalni volumen (miliona $)", value=1)
+skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=50)
+
+# ==== Glavni podaci ====
+with st.spinner("\U0001f504 Učitavam podatke sa CoinGecko API-ja..."):
     df = get_top_coins()
-    fundamentals = {item['id']: item for item in [get_fundamentals(coin['id']) for coin in df.to_dict('records')]}
+    change_column = {
+        '1h': 'price_change_percentage_1h_in_currency',
+        '24h': 'price_change_percentage_24h_in_currency',
+        '7d': 'price_change_percentage_7d_in_currency',
+    }[time_period]
+    df = df[(df['market_cap'] >= min_market_cap * 1e6) & (df['total_volume'] >= min_volume * 1e6)]
+    df = df.dropna(subset=[change_column])
+    df = df.sort_values(change_column, ascending=False).head(50)
 
-change_column = {
-    '1h': 'price_change_percentage_1h_in_currency',
-    '24h': 'price_change_percentage_24h_in_currency',
-    '7d': 'price_change_percentage_7d_in_currency',
-}[time_period]
+    # ==== Grafikon ====
+    st.subheader(f"\U0001f4c8 Top 20 skokova ({time_period})")
+    fig = px.bar(df.head(20), x='name', y=change_column, text=change_column,
+                 title=f"Top 20 kripto skokova u {time_period}", color=change_column,
+                 color_continuous_scale='reds')
+    fig.update_layout(xaxis_tickangle=-45, height=500)
+    st.plotly_chart(fig, use_container_width=True)
 
-# Filtriranje
-filtered_df = df[(df['market_cap'] >= min_market_cap * 1e6) & (df['total_volume'] >= min_volume * 1e6)]
-filtered_df = filtered_df.dropna(subset=[change_column])
-filtered_df = filtered_df.sort_values(change_column, ascending=False).head(50)
+    # ==== Tabela sa dodatnim kolonama ====
+    rows = []
+    for _, row in df.iterrows():
+        coin_id = row['id']
+        fundamentals = get_fundamentals(coin_id)
+        rows.append({
+            "Name": row['name'],
+            "Symbol": row['symbol'],
+            "Price": f"{row['current_price']:,.4f}",
+            f"% Change ({time_period})": f"{row[change_column]:.2f}%",
+            "Market Cap": f"{row['market_cap']:,.0f}",
+            "Volume": f"{row['total_volume']:,.0f}",
+            "Genesis Date": fundamentals.get("Genesis Date", ""),
+            "Twitter Followers": f"{fundamentals.get('Twitter Followers', 0):,}" if fundamentals.get('Twitter Followers') else "",
+            "GitHub Commits (4w)": f"{fundamentals.get('GitHub Commits (4w)', 0):,}" if fundamentals.get('GitHub Commits (4w)') else "",
+            "CMC": f'<a href="https://coinmarketcap.com/currencies/{coin_id}/" target="_blank"><button>CMC</button></a>'
+        })
 
-# Priprema prikaza
-rows = []
-for _, row in filtered_df.iterrows():
-    coin_id = row['id']
-    extra = fundamentals.get(coin_id, {})
-    market_cap = row['market_cap']
-    volume = row['total_volume']
-    change = row[change_column]
+    df_display = pd.DataFrame(rows)
+    st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    def format_conditional(value, condition):
-        return f'<span class="green-cell">{value}</span>' if condition else f"{value}"
-
-    rows.append({
-        "Name": row['name'],
-        "Symbol": row['symbol'],
-        "Price": f"{row['current_price']:,.4f}",
-        f"% Change ({time_period})": format_conditional(f"{change:.2f}%", change > 30),
-        "Market Cap": format_conditional(f"{market_cap:,.0f}", market_cap < 5_000_000),
-        "Volume": format_conditional(f"{volume:,.0f}", volume > 500_000),
-        "Genesis Date": extra.get("Genesis Date", ""),
-        "Twitter Followers": f"{extra.get('Twitter Followers', ''):,}" if extra.get('Twitter Followers') else "",
-        "GitHub Commits (4w)": f"{extra.get('GitHub Commits (4w)', ''):,}" if extra.get('GitHub Commits (4w)') else "",
-        "CMC": f'<a href="https://coinmarketcap.com/currencies/{coin_id}/" target="_blank"><button>CMC</button></a>'
-    })
-
-df_display = pd.DataFrame(rows)
-
-st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+    # ==== Eksplozivne mete ====
+    st.subheader("\U0001f525 Niskobudžetne eksplozivne mete")
+    explosives = df[(df['market_cap'] <= 5_000_000) & (df['current_price'] < 0.1) & (df[change_column] > skok_threshold)]
+    if not explosives.empty:
+        df_explosive = explosives[['name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']].copy()
+        df_explosive.columns = ['Name', 'Symbol', 'Price', f'% Change ({time_period})', 'Market Cap', 'Volume']
+        for col in ['Price', f'% Change ({time_period})']:
+            df_explosive[col] = df_explosive[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+        for col in ['Market Cap', 'Volume']:
+            df_explosive[col] = df_explosive[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+        st.dataframe(df_explosive)
+    else:
+        st.info("\U0001f6ac Nema eksplozivnih mete trenutno.")
