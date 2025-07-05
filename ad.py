@@ -7,6 +7,12 @@ from datetime import datetime
 import ta
 import time
 from binance.client import Client
+
+
+# ==== Auto Refresh ====
+if st.button("🔄 Ručno osveži"):
+    st.rerun()
+    
 try:
     client.ping()
 except Exception as e:
@@ -14,11 +20,6 @@ except Exception as e:
     st.stop()
 st.set_page_config(layout="wide")
 st.title("🚀 Kripto Skok Detektor + Binance RSI/MACD")
-
-# ==== Auto Refresh ====
-if st.button("🔄 Ručno osveži"):
-    st.rerun()
-
 # ==== Telegram funkcija ====
 def send_telegram_alert(message):
     try:
