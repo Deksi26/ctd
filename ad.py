@@ -15,13 +15,15 @@ if "password_correct" not in st.session_state:
 if not st.session_state["password_correct"]:
     pwd = st.text_input("🔒 Unesi lozinku za pristup aplikaciji:", type="password")
     if pwd:
-        if pwd == PASSWORD:
-            st.session_state["password_correct"] = True
+        if pwd != PASSWORD:    
+            st.error("❌ Pogrešna lozinka, pokušaj ponovo.")
+            st.stop()
             
         else:
-            st.error("❌ Pogrešna lozinka, pokušaj ponovo.")
+             st.session_state["password_correct"] = True
+            
     # Ovde zaustavljamo dalje izvršavanje dok korisnik ne unese ispravnu lozinku
-    st.stop()
+    
 
 st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
 st.title("💥 Kripto Snajper – Lovac na brze mete")
