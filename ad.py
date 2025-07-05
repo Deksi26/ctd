@@ -7,7 +7,11 @@ from datetime import datetime
 import ta
 import time
 from binance.client import Client
-
+try:
+    client.ping()
+except Exception as e:
+    st.error("❌ Binance API nije validan ili nije aktivan. Proveri ključeve u secrets.")
+    st.stop()
 st.set_page_config(layout="wide")
 st.title("🚀 Kripto Skok Detektor + Binance RSI/MACD")
 
