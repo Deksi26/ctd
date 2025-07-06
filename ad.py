@@ -127,6 +127,31 @@ with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
     df = df[df['total_volume'] >= min_volume * 1e6]
     df = df.dropna(subset=[change_column])
     df = df.sort_values(change_column, ascending=False)
+    @st.cache_data(ttl=3600)
+def get_fundamentals_cmc(symbol):
+    try:
+        url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/info"
+        headers = {"X-CMC_PRO_API_KEY": st.secrets["CMC_API_KEY"]}
+        params = {"symbol": symbol}
+        response = requests.get(url, headers=headers, params=params)
+        data = response.json()["data"]
+        token_data = data[symbol]
+
+        return {
+            "Symbol": symbol,
+            "Genesis Date": token_data.get("date_added", "")[:10],
+            "Twitter Followers": token_data.get("twitter_followers"),
+            "GitHub Commits (4w)": None  # Placeholder
+        }
+    except Exception as e:
+        print(f"CMC API error for {symbol}: {e}")
+        return {
+            "Symbol": symbol,
+            "Genesis Date": "",
+            "Twitter Followers": None,
+            "GitHub Commits (4w)": None
+        }
+
 
 # === Stranica 1: Analiza tržišta ===
 if page == "📊 Analiza tržišta":
@@ -149,12 +174,23 @@ if page == "📊 Analiza tržišta":
 
     df_display['CoinMarketCap'] = df_display['id'].apply(lambda x: f'<a href="https://coinmarketcap.com/currencies/{x}/" target="_blank"><button>CMC</button></a>')
 
-    # === Dodajemo fundamentalne podatke ===
-    fundamentals = [get_fundamentals(coin_id) for coin_id in df_display['id']]
-    fundamentals_df = pd.DataFrame(fundamentals).set_index('id')
-    df_display.set_index('id', inplace=True)
-    df_display = df_display.join(fundamentals_df)
-    df_display.reset_index(drop=True, inplace=True)
+   
+   # === CMC Fundamentals: Genesis Date, Twitter Followers
+symbols = df_display['Symbol'].unique().tolist()
+fundamentals_cmc = [get_fundamentals_cmc(symbol) for symbol in symbols]
+fund_df = pd.DataFrame(fundamentals_cmc).set_index("Symbol")
+
+# Spoji sa glavnim DataFrame-om
+df_display.set_index("Symbol", inplace=True)
+df_display = df_display.join(fund_df)
+df_display.reset_index(inplace=True)
+
+# Formatiranje dodatnih kolona
+if 'Twitter Followers' in df_display:
+    df_display['Twitter Followers'] = df_display['Twitter Followers'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
+if 'GitHub Commits (4w)' in df_display:
+    df_display['GitHub Commits (4w)'] = df_display['GitHub Commits (4w)'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
+
 
     # Formatiranje dodatnih kolona
     if 'Twitter Followers' in df_display:
