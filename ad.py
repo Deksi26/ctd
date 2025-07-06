@@ -151,14 +151,21 @@ with st.spinner("🔄 Učitavam podatke..."):
 
     df_display['CoinMarketCap'] = df_display['id'].apply(lambda x: f'<a href="https://coinmarketcap.com/currencies/{x}/" target="_blank"><button>CMC</button></a>')
 
-# === Stilizacija tabela ===
-def highlight_candidates(row):
-    if row['✅ Kandidat']:
-        return ['background-color: #d4edda'] * len(row)
+# === Svetlo zelena boja ako red ispunjava uslov
+def highlight_strong_rows(row):
+    try:
+        volume = float(str(row['Volume']).replace(',', ''))
+        market_cap = float(str(row['Market Cap']).replace(',', ''))
+        price = float(str(row['Price']).replace(',', ''))
+        percent = float(str(row[f'% Change ({time_period})']).replace('%', '').replace(',', ''))
+        if volume > 1_000_000 and market_cap < 50_000_000 and price < 0.1 and percent > 30:
+            return ['background-color: #d4edda'] * len(row)
+    except:
+        pass
     return [''] * len(row)
 
-styled_df = df_display.style.apply(highlight_candidates, axis=1)
+styled_df = df_display.style.apply(highlight_strong_rows, axis=1)
 
-# === Prikaz ===
+# === Prikaz
 st.subheader(f"📈 Top 50 tokena ({time_period}) sa fundamentalnim kolonama")
 st.markdown(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
