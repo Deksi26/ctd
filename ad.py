@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
+
 from datetime import datetime
 
 # === Osnovna podešavanja ===
@@ -64,11 +65,6 @@ with st.expander("📘 Kako tumačiti podatke i grafikone"):
 - **% Change**: Promena cene u odabranom periodu.
 - **Volume**: Trgovanje u USDT u zadnja 24h.
 - **Market Cap**: Ukupna vrednost tokena.
-
-**🟢 Kada je signal zanimljiv?**
-- Veliki % skoka (npr. >30%) uz dobar volumen može značiti da se projekat "budi".
-- Male market cap kriptovalute + visok rast = rizične ali mogu biti eksplozivne.
-- Ako je cena tokena < 0.1 USDT i skokne 100% → moguće da ide dalje, ali rizik je velik.
 """)
 
 # === Sidebar: Filteri i navigacija ===
@@ -80,55 +76,9 @@ min_market_cap = st.sidebar.number_input("Minimalni Market Cap (miliona $)", val
 min_volume = st.sidebar.number_input("Minimalni volumen (miliona $)", value=1)
 skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=34)
 
-# === Dohvatanje podataka ===
+# === CMC API za fundamentalne podatke ===
 @st.cache_data(ttl=3600)
-def get_top_coins():
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        'vs_currency': vs_currency,
-        'order': 'market_cap_desc',
-        'per_page': 250,
-        'page': 1,
-        'price_change_percentage': '1h,24h,7d'
-    }
-    response = requests.get(url, params=params)
-    return pd.DataFrame(response.json())
-
-@st.cache_data(ttl=3600)
-def get_fundamentals(coin_id):
-    try:
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
-        data = requests.get(url).json()
-        return {
-            'id': coin_id,
-            'Genesis Date': data.get('genesis_date'),
-            'Twitter Followers': data.get('community_data', {}).get('twitter_followers'),
-            'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks')
-        }
-    except:
-        return {
-            'id': coin_id,
-            'Genesis Date': None,
-            'Twitter Followers': None,
-            'GitHub Commits (4w)': None
-        }
-
-# === Koja kolona se koristi za % promenu ===
-change_column = {
-    '1h': 'price_change_percentage_1h_in_currency',
-    '24h': 'price_change_percentage_24h_in_currency',
-    '7d': 'price_change_percentage_7d_in_currency',
-}[time_period]
-
-# === Prikupljanje podataka ===
-with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
-    df = get_top_coins()
-    df = df[df['market_cap'] >= min_market_cap * 1e6]
-    df = df[df['total_volume'] >= min_volume * 1e6]
-    df = df.dropna(subset=[change_column])
-    df = df.sort_values(change_column, ascending=False)
-    @st.cache_data(ttl=3600)
- def get_fundamentals_cmc(symbol):
+def get_fundamentals_cmc(symbol):
     try:
         url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/info"
         headers = {"X-CMC_PRO_API_KEY": st.secrets["CMC_API_KEY"]}
@@ -152,8 +102,36 @@ with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
             "GitHub Commits (4w)": None
         }
 
+# === CoinGecko API ===
+@st.cache_data(ttl=3600)
+def get_top_coins():
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        'vs_currency': vs_currency,
+        'order': 'market_cap_desc',
+        'per_page': 250,
+        'page': 1,
+        'price_change_percentage': '1h,24h,7d'
+    }
+    response = requests.get(url, params=params)
+    return pd.DataFrame(response.json())
 
-# === Stranica 1: Analiza tržišta ===
+# === Odabir % kolone
+change_column = {
+    '1h': 'price_change_percentage_1h_in_currency',
+    '24h': 'price_change_percentage_24h_in_currency',
+    '7d': 'price_change_percentage_7d_in_currency',
+}[time_period]
+
+# === Učitavanje i filtriranje podataka
+with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
+    df = get_top_coins()
+    df = df[df['market_cap'] >= min_market_cap * 1e6]
+    df = df[df['total_volume'] >= min_volume * 1e6]
+    df = df.dropna(subset=[change_column])
+    df = df.sort_values(change_column, ascending=False)
+
+# === Stranica 1: Analiza tržišta
 if page == "📊 Analiza tržišta":
     st.subheader(f"📈 Top 20 skokova ({time_period})")
     fig = px.bar(df.head(20), x='name', y=change_column, text=change_column,
@@ -166,33 +144,21 @@ if page == "📊 Analiza tržišta":
     df_display = df[['id', 'name', 'symbol', 'current_price', change_column, 'market_cap', 'total_volume']].head(50).copy()
     df_display.columns = ['id', 'Name', 'Symbol', 'Price', f'% Change ({time_period})', 'Market Cap', 'Volume']
 
-    # Formatiranje brojeva
     for col in ['Price', f'% Change ({time_period})']:
         df_display[col] = df_display[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
     for col in ['Market Cap', 'Volume']:
         df_display[col] = df_display[col].apply(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
-
     df_display['CoinMarketCap'] = df_display['id'].apply(lambda x: f'<a href="https://coinmarketcap.com/currencies/{x}/" target="_blank"><button>CMC</button></a>')
 
-   
-   # === CMC Fundamentals: Genesis Date, Twitter Followers
-symbols = df_display['Symbol'].unique().tolist()
-fundamentals_cmc = [get_fundamentals_cmc(symbol) for symbol in symbols]
-fund_df = pd.DataFrame(fundamentals_cmc).set_index("Symbol")
+    # === Dodavanje CMC fundamentalnih podataka
+    symbols = df_display['Symbol'].unique().tolist()
+    fundamentals_cmc = [get_fundamentals_cmc(symbol) for symbol in symbols]
+    fund_df = pd.DataFrame(fundamentals_cmc).set_index("Symbol")
 
-# Spoji sa glavnim DataFrame-om
-df_display.set_index("Symbol", inplace=True)
-df_display = df_display.join(fund_df)
-df_display.reset_index(inplace=True)
+    df_display.set_index("Symbol", inplace=True)
+    df_display = df_display.join(fund_df)
+    df_display.reset_index(inplace=True)
 
-# Formatiranje dodatnih kolona
-if 'Twitter Followers' in df_display:
-    df_display['Twitter Followers'] = df_display['Twitter Followers'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
-if 'GitHub Commits (4w)' in df_display:
-    df_display['GitHub Commits (4w)'] = df_display['GitHub Commits (4w)'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
-
-
-    # Formatiranje dodatnih kolona
     if 'Twitter Followers' in df_display:
         df_display['Twitter Followers'] = df_display['Twitter Followers'].apply(lambda x: f"{x:,}" if pd.notnull(x) else "")
     if 'GitHub Commits (4w)' in df_display:
@@ -200,7 +166,7 @@ if 'GitHub Commits (4w)' in df_display:
 
     st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    # === Telegram alerti ===
+    # === Telegram upozorenja
     alerts = df[df[change_column] >= skok_threshold]
     if not alerts.empty:
         st.warning(f"🚨 Pronađeno {len(alerts)} kriptovaluta sa skokom većim od {skok_threshold}%!")
@@ -210,13 +176,12 @@ if 'GitHub Commits (4w)' in df_display:
         alert_display['Cena'] = alert_display['Cena'].apply(lambda x: f"{x:,.4f}")
         alert_display['% Skok'] = alert_display['% Skok'].apply(lambda x: f"{x:.2f}%")
         st.table(alert_display)
-
         for i, row in alerts.iterrows():
             send_telegram_alert(f"🚀 *{row['name']}* ({row['symbol'].upper()}) skočio {row[change_column]:.2f}%!")
     else:
         st.info("📬 Nema kriptovaluta koje zadovoljavaju kriterijum za upozorenje.")
 
-# === Stranica 2: Eksplozivne mete ===
+# === Stranica 2: Eksplozivne mete
 elif page == "🔥 Eksplozivne mete":
     st.subheader("🔥 Niskobudžetne eksplozivne mete")
     explosives = df[(df['market_cap'] <= 5_000_000) & (df['current_price'] < 0.1) & (df[change_column] > skok_threshold)]
