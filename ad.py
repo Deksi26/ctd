@@ -128,7 +128,7 @@ with st.spinner("🔄 Učitavam podatke sa CoinGecko API-ja..."):
     df = df.dropna(subset=[change_column])
     df = df.sort_values(change_column, ascending=False)
     @st.cache_data(ttl=3600)
-def get_fundamentals_cmc(symbol):
+ def get_fundamentals_cmc(symbol):
     try:
         url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/info"
         headers = {"X-CMC_PRO_API_KEY": st.secrets["CMC_API_KEY"]}
