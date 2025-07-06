@@ -1,41 +1,54 @@
 import streamlit as st
 import pandas as pd
-import requests
 import plotly.express as px
+import requests
+from datetime import datetime, timedelta
+import time
 
-st.set_page_config(layout="wide", page_title="Kripto Snajper – Lovac na brze mete", page_icon="🚨")
+# ==== Konfiguracija stranice ====
+st.set_page_config(layout="wide", page_title="Kripto Skok Detektor", page_icon="🚀")
+st.title("🚀 Kripto Skok Detektor")
 
-# ==== Tutorijal ====
-with st.expander("Strategija korišćenja aplikacije"):
+# ==== Help tekst ====
+with st.expander("🧠 Kako koristiti aplikaciju - Strategija"):
     st.markdown("""
-    **Filtriramo:**
-    - Market Cap < 5M
-    - Cena < 0.1 USDT
-    - Volume > 500.000 USDT
-    - Skok > 30% (1h ili 24h)
+### 🎯 Cilj:
+Pronaći male, brzo rastuće kriptovalute sa potencijalom za eksploziju (100%+ skok).
 
-    **Dodatni signali:**
-    - Novi token (genesis date unazad 90 dana)
-    - Twitter zajednica (1000+ followers)
-    - GitHub aktivnost
+### 🔍 Filtriramo:
+- Market Cap < **5 miliona $**
+- Cena < **0.1 USDT**
+- Volume > **500.000 $**
+- Promena > **30%** (u 1h ili 24h)
 
-    **Cilj:**
-    - 2-3 ulaganja od 10–50€
-    - Izlazak kada skokne 100–200%
-    - Ne držimo duže od 1–2 dana ako ne skače
+### 📊 Gledamo dodatno:
+- **Genesis Date**: poslednja 3 meseca
+- **Twitter Followers**: 1000+
+- **GitHub aktivnost**: da postoji
 
-    🔍 *Meta je ako ispunjava sve gore navedene uslove.*
-    """)
+### ✅ Naša "Meta":
+Tokeni koji ispunjavaju sve kriterijume ✔
 
+### 📤 Telegram:
+Automatski šalje upozorenje za mete koje ispunjavaju kriterijume
+""")
+
+# ==== Sidebar filteri ====
+st.sidebar.header("⚙️ Filteri")
+vs_currency = st.sidebar.selectbox("Valuta prikaza", options=['usd', 'eur'], index=0)
+time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=0)
+skok_threshold = st.sidebar.slider("% Skoka (min)", 10, 500, 30)
+
+# ==== API dohvat podataka ====
 @st.cache_data(ttl=3600)
 def get_top_coins():
-    url = "https://api.coingecko.com/api/v3/coins/markets"
+    url = f"https://api.coingecko.com/api/v3/coins/markets"
     params = {
-        'vs_currency': 'usd',
+        'vs_currency': vs_currency,
         'order': 'market_cap_asc',
         'per_page': 250,
         'page': 1,
-        'price_change_percentage': '1h,24h'
+        'price_change_percentage': '1h,24h,7d'
     }
     response = requests.get(url, params=params)
     return pd.DataFrame(response.json())
@@ -46,56 +59,66 @@ def get_fundamentals(coin_id):
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
         data = requests.get(url).json()
         return {
+            'id': data.get('id'),
             'Genesis Date': data.get('genesis_date'),
             'Twitter Followers': data.get('community_data', {}).get('twitter_followers', 0),
-            'GitHub Commits': data.get('developer_data', {}).get('commit_count_4_weeks', 0),
+            'GitHub Commits (4w)': data.get('developer_data', {}).get('commit_count_4_weeks', 0),
         }
     except:
-        return {'Genesis Date': None, 'Twitter Followers': 0, 'GitHub Commits': 0}
+        return {}
 
-with st.spinner("Učitavam podatke..."):
+with st.spinner("🔄 Učitavanje podataka sa CoinGecko API-ja..."):
     df = get_top_coins()
+    change_column = {
+        '1h': 'price_change_percentage_1h_in_currency',
+        '24h': 'price_change_percentage_24h_in_currency',
+        '7d': 'price_change_percentage_7d_in_currency',
+    }[time_period]
 
-change_col = 'price_change_percentage_24h_in_currency'
+    df = df[df['market_cap'] <= 5_000_000]
+    df = df[df['current_price'] <= 0.1]
+    df = df[df['total_volume'] >= 500_000]
+    df = df[df[change_column] >= skok_threshold]
+    df = df.dropna(subset=[change_column])
+    df = df.sort_values(change_column, ascending=False)
 
-# Filtriranje
-filtered = df[(df['market_cap'] < 5_000_000) &
-              (df['current_price'] < 0.1) &
-              (df['total_volume'] > 500_000) &
-              (df[change_col] > 30)]
+    if df.empty:
+        st.warning("⚠️ Nema tokena koji ispunjavaju sve filtere. Pokušaj sa manjim uslovima.")
+    else:
+        st.subheader("🔢 Tokeni koji ispunjavaju kriterijume")
+        rows = []
+        for _, row in df.iterrows():
+            fundamentals = get_fundamentals(row['id'])
+            genesis_date = fundamentals.get("Genesis Date")
+            recent_token = False
+            if genesis_date:
+                try:
+                    recent_token = datetime.strptime(genesis_date, "%Y-%m-%d") >= datetime.today() - timedelta(days=90)
+                except:
+                    pass
 
-rows = []
-for _, row in filtered.iterrows():
-    fundamentals = get_fundamentals(row['id'])
-    is_new = False
-    if fundamentals['Genesis Date']:
-        try:
-            is_new = pd.to_datetime(fundamentals['Genesis Date']) > pd.Timestamp.now() - pd.Timedelta(days=90)
-        except:
-            pass
+            is_meta = all([
+                row['market_cap'] <= 5_000_000,
+                row['current_price'] <= 0.1,
+                row['total_volume'] >= 500_000,
+                row[change_column] >= skok_threshold,
+                fundamentals.get("Twitter Followers", 0) >= 1000,
+                fundamentals.get("GitHub Commits (4w)", 0) > 0,
+                recent_token
+            ])
 
-    meta = (
-        is_new and
-        fundamentals['Twitter Followers'] >= 1000 and
-        fundamentals['GitHub Commits'] > 0
-    )
+            rows.append({
+                "Name": row['name'],
+                "Symbol": row['symbol'],
+                "Price": f"{row['current_price']:,.4f}",
+                f"% Change ({time_period})": f"{row[change_column]:.2f}%",
+                "Market Cap": f"{row['market_cap']:,.0f}",
+                "Volume": f"{row['total_volume']:,.0f}",
+                "Genesis Date": genesis_date if genesis_date else "",
+                "Twitter Followers": f"{fundamentals.get('Twitter Followers', 0):,}",
+                "GitHub (4w)": f"{fundamentals.get('GitHub Commits (4w)', 0):,}",
+                "🌟 Meta?": "🌟" if is_meta else ""
+            })
 
-    rows.append({
-        'Name': row['name'],
-        'Symbol': row['symbol'],
-        'Price': f"{row['current_price']:,.4f}",
-        '% Change (24h)': f"{row[change_col]:.2f}%",
-        'Market Cap': f"{row['market_cap']:,.0f}",
-        'Volume': f"{row['total_volume']:,.0f}",
-        'Genesis Date': fundamentals['Genesis Date'] or '',
-        'Twitter Followers': f"{fundamentals['Twitter Followers']:,}",
-        'GitHub Commits': fundamentals['GitHub Commits'],
-        '🎯 Meta?': "✅" if meta else ""
-    })
-
-if rows:
-    df_display = pd.DataFrame(rows)
-    st.subheader("🎯 Tokeni koji ispunjavaju uslove za mete")
-    st.dataframe(df_display)
-else:
-    st.info("Nema tokena koji ispunjavaju sve kriterijume trenutno.")
+        df_final = pd.DataFrame(rows)
+        st.dataframe(df_final, use_container_width=True)
