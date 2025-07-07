@@ -74,7 +74,7 @@ with st.expander("📘 Kako tumačiti podatke i grafikone"):
 st.sidebar.header("⚙️ Filteri")
 page = st.sidebar.radio("📂 Stranice", ["📊 Analiza tržišta", "🔥 Eksplozivne mete"])
 vs_currency = st.sidebar.selectbox("Valuta prikaza", options=['usd', 'eur'], index=0)
-time_period = st.sidebar.selectbox("Vremenski period", ['3h', '24h', '7d'], index=0)
+time_period = st.sidebar.selectbox("Vremenski period", ['1h', '24h', '7d'], index=0)
 min_market_cap = st.sidebar.number_input("Minimalni Market Cap (miliona $)", value=3)
 min_volume = st.sidebar.number_input("Minimalni volumen (miliona $)", value=1)
 skok_threshold = st.sidebar.slider("Minimalni procenat rasta za upozorenje", min_value=10, max_value=500, value=34)
